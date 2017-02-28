@@ -72,7 +72,8 @@ namespace UniteHuePlugin
         LIGHT_OFF,
         LIGHT_INCREASE,
         LIGHT_DECREASE,
-        LIGHT_CHANGE_COLOR
+        LIGHT_CHANGE_COLOR,
+		LIGHT_COLOR_LOOP
     }
 
     public struct ButtonPressAction
@@ -112,37 +113,17 @@ namespace UniteHuePlugin
         static string deviceName = "UniteBridgeDevice";
         static ILocalHueClient client;
 
-
-        public void SimpleTestPlugin()
-        {
-            //TODO: load previous session data from file
-
-            //Define plugin details
-            pluginDetails.Name = "Unite Hue Plugin";
-            pluginDetails.Id = new Guid("12345678-1234-1234-1234-123456781234");
-            pluginDetails.Description = "Intel Unite Plugin For Controlling Philips Hue";
-            pluginDetails.Copyright = "Copyright (C) 2017 Intel Corporation - All Rights Reserved";
-            pluginDetails.Company = "Intel Corporation";
-
-            //the image show with ShowHubToast() 
-            hueLogoImage = ResourceToBytes(new Uri("/UniteHuePlugin;component/images/huelogo.png", System.UriKind.Relative));
-
-            //UI elements
-            UI = new PluginUI();
-            UI.pluginInfo = pluginDetails;
-            UI.Groups = new List<PluginUIElementGroup>();
-            UpdateUIGroups();
-
-        }
         public override void Load()
         {
-            //Do nothing
             LogMessage("Plugin Loaded", null);
-            SimpleTestPlugin();
+
+            LoadSettings();
+            InitializePlugin();
         }
         public override void UnLoad()
         {
-            //Do nothing
+            SaveSettings();
+
             LogMessage("Plugin Unloaded", null);
         }
         public override void UserConnected(UserEventArgs e)
@@ -249,6 +230,14 @@ namespace UniteHuePlugin
 
                 ChangeLightColor(selectedLight, color);
             }
+            else if (buttonPressAction.action == ActionEnum.LIGHT_COLOR_LOOP)
+            {
+                HubText = "Starting Color Loop on Light " + selectedLight.getLightId();
+                ShowHubToast(HubText, hueLogoImage, 2);
+                LogMessage(HubText, null);
+
+                StartColorLoop(selectedLight);
+            }
             else
             {
                 HubText = "Invalid button press action";
@@ -274,31 +263,40 @@ namespace UniteHuePlugin
             return HubText;
         }
 
-        async void SearchBridges()
+
+        void InitializePlugin()
         {
-            //search bridges at https://www.meethue.com/api/nupnp
-            //IBridgeLocator locator = new HttpBridgeLocator();
-            //scans network using multicast SSDP packets
-            IBridgeLocator locator = new SSDPBridgeLocator();
+            //TODO: load previous session data from file
 
-            IEnumerable<Q42.HueApi.Models.Bridge.LocatedBridge> locatedBridges = await locator.LocateBridgesAsync(TimeSpan.FromSeconds(5));
-            
-            foundHueBridges.Clear();
-            foundHueLights.Clear();
-            foreach (var locatedBridge in locatedBridges)
-            {
-                foundHueBridges.Add(new HueBridge(locatedBridge.BridgeId, locatedBridge.BridgeId, locatedBridge.IpAddress));
-            }
+            //Define plugin details
+            pluginDetails.Name = "Unite Hue Plugin";
+            pluginDetails.Id = new Guid("12345678-1234-1234-1234-123456781234");
+            pluginDetails.Description = "Intel Unite Plugin For Controlling Philips Hue";
+            pluginDetails.Copyright = "Copyright (C) 2017 Intel Corporation - All Rights Reserved";
+            pluginDetails.Company = "Intel Corporation";
 
-            string message = "Found Hue bridges count: " + locatedBridges.Count();
-            LogMessage(message, null);
-            ShowHubToast(message, hueLogoImage, 2);
+            //the image show with ShowHubToast() 
+            hueLogoImage = ResourceToBytes(new Uri("/UniteHuePlugin;component/images/huelogo.png", System.UriKind.Relative));
 
+            //UI elements
+            UI = new PluginUI();
+            UI.pluginInfo = pluginDetails;
+            UI.Groups = new List<PluginUIElementGroup>();
             UpdateUIGroups();
-            FireUIUpdated();
+
+        }
+
+        void SaveSettings()
+        {
+            //TODO: save settings
+        }
+
+        void LoadSettings()
+        {
+            //TODO: load settings
         }
         
-        Guid createButtonPressAction(ActionEnum action, string value ="")
+        Guid CreateButtonPressAction(ActionEnum action, string value ="")
         {
             Guid g = Guid.NewGuid();
 
@@ -316,7 +314,7 @@ namespace UniteHuePlugin
             elementsGroup.ImageBytes = ResourceToBytes(new Uri("/UniteHuePlugin;component/images/hueplugin.png", UriKind.Relative));
             elementsGroup.UIElements = new List<PluginUIElement>();
 
-            elementsGroup.UIElements.Add(new PluginUIElement(createButtonPressAction(ActionEnum.SEARCH_BRIDGES), UIElementType.Button, "Search Bridges", "", ResourceToBytes(new Uri("/UniteHuePlugin;component/images/search.png", System.UriKind.Relative))));
+            elementsGroup.UIElements.Add(new PluginUIElement(CreateButtonPressAction(ActionEnum.SEARCH_BRIDGES), UIElementType.Button, "Search Bridges", "", ResourceToBytes(new Uri("/UniteHuePlugin;component/images/search.png", System.UriKind.Relative))));
 
             LogMessage("foundHueBridges.Count: " + foundHueBridges.Count(), null);
             if (foundHueBridges.Count > 0)
@@ -326,11 +324,11 @@ namespace UniteHuePlugin
                     LogMessage("hueBridge: " + hueBridge.getBridgeId(), null);
                     if (connectedBridge != null && hueBridge.getBridgeId() == connectedBridge.getBridgeId())
                     {
-                        elementsGroup.UIElements.Add(new PluginUIElement(createButtonPressAction(ActionEnum.CONNECT_BRIDGE, hueBridge.getBridgeId()), UIElementType.Button, hueBridge.getName(), "", ResourceToBytes(new Uri("/UniteHuePlugin;component/images/bridge-connected.png", System.UriKind.Relative))));
+                        elementsGroup.UIElements.Add(new PluginUIElement(CreateButtonPressAction(ActionEnum.CONNECT_BRIDGE, hueBridge.getBridgeId()), UIElementType.Button, hueBridge.getName(), "", ResourceToBytes(new Uri("/UniteHuePlugin;component/images/bridge-connected.png", System.UriKind.Relative))));
                     }
                     else
                     {
-                        elementsGroup.UIElements.Add(new PluginUIElement(createButtonPressAction(ActionEnum.CONNECT_BRIDGE, hueBridge.getBridgeId()), UIElementType.Button, hueBridge.getName(), "", ResourceToBytes(new Uri("/UniteHuePlugin;component/images/bridge.png", System.UriKind.Relative))));
+                        elementsGroup.UIElements.Add(new PluginUIElement(CreateButtonPressAction(ActionEnum.CONNECT_BRIDGE, hueBridge.getBridgeId()), UIElementType.Button, hueBridge.getName(), "", ResourceToBytes(new Uri("/UniteHuePlugin;component/images/bridge.png", System.UriKind.Relative))));
                     }
                 }
                 
@@ -340,32 +338,62 @@ namespace UniteHuePlugin
                     {
                         if (selectedLight != null && hueLight.getLightId() == selectedLight.getLightId())
                         {
-                            elementsGroup.UIElements.Add(new PluginUIElement(createButtonPressAction(ActionEnum.SELECT_LIGHT, hueLight.getLightId()), UIElementType.Button, hueLight.getName(), "", ResourceToBytes(new Uri("/UniteHuePlugin;component/images/light-selected.png", System.UriKind.Relative))));
+                            elementsGroup.UIElements.Add(new PluginUIElement(CreateButtonPressAction(ActionEnum.SELECT_LIGHT, hueLight.getLightId()), UIElementType.Button, hueLight.getName(), "", ResourceToBytes(new Uri("/UniteHuePlugin;component/images/light-selected.png", System.UriKind.Relative))));
                         }
                         else
                         {
-                            elementsGroup.UIElements.Add(new PluginUIElement(createButtonPressAction(ActionEnum.SELECT_LIGHT, hueLight.getLightId()), UIElementType.Button, hueLight.getName(), "", ResourceToBytes(new Uri("/UniteHuePlugin;component/images/light.png", System.UriKind.Relative))));
+                            elementsGroup.UIElements.Add(new PluginUIElement(CreateButtonPressAction(ActionEnum.SELECT_LIGHT, hueLight.getLightId()), UIElementType.Button, hueLight.getName(), "", ResourceToBytes(new Uri("/UniteHuePlugin;component/images/light.png", System.UriKind.Relative))));
                         }
                     }
                 }
 
                 if (selectedLight != null)
                 {
-                    elementsGroup.UIElements.Add(new PluginUIElement(createButtonPressAction(ActionEnum.LIGHT_ON), UIElementType.Button, "Turn ON", "", ResourceToBytes(new Uri("/UniteHuePlugin;component/images/turnon.png", System.UriKind.Relative))));
-                    elementsGroup.UIElements.Add(new PluginUIElement(createButtonPressAction(ActionEnum.LIGHT_OFF), UIElementType.Button, "Turn OFF", "", ResourceToBytes(new Uri("/UniteHuePlugin;component/images/turnoff.png", System.UriKind.Relative))));
+                    elementsGroup.UIElements.Add(new PluginUIElement(CreateButtonPressAction(ActionEnum.LIGHT_ON), UIElementType.Button, "Turn On", "", ResourceToBytes(new Uri("/UniteHuePlugin;component/images/turnon.png", System.UriKind.Relative))));
+                    elementsGroup.UIElements.Add(new PluginUIElement(CreateButtonPressAction(ActionEnum.LIGHT_OFF), UIElementType.Button, "Turn Off", "", ResourceToBytes(new Uri("/UniteHuePlugin;component/images/turnoff.png", System.UriKind.Relative))));
 
-                    elementsGroup.UIElements.Add(new PluginUIElement(createButtonPressAction(ActionEnum.LIGHT_INCREASE), UIElementType.Button, "Increase Brightness", "", ResourceToBytes(new Uri("/UniteHuePlugin;component/images/increase.png", System.UriKind.Relative))));
-                    elementsGroup.UIElements.Add(new PluginUIElement(createButtonPressAction(ActionEnum.LIGHT_DECREASE), UIElementType.Button, "Decrease Brightness", "", ResourceToBytes(new Uri("/UniteHuePlugin;component/images/decrease.png", System.UriKind.Relative))));
+                    elementsGroup.UIElements.Add(new PluginUIElement(CreateButtonPressAction(ActionEnum.LIGHT_INCREASE), UIElementType.Button, "Increase Brightness", "", ResourceToBytes(new Uri("/UniteHuePlugin;component/images/brighter.png", System.UriKind.Relative))));
+                    elementsGroup.UIElements.Add(new PluginUIElement(CreateButtonPressAction(ActionEnum.LIGHT_DECREASE), UIElementType.Button, "Decrease Brightness", "", ResourceToBytes(new Uri("/UniteHuePlugin;component/images/darker.png", System.UriKind.Relative))));
 
-                    elementsGroup.UIElements.Add(new PluginUIElement(createButtonPressAction(ActionEnum.LIGHT_CHANGE_COLOR, "FF0000"), UIElementType.Button, "Red", "", ResourceToBytes(new Uri("/UniteHuePlugin;component/images/light-red.png", System.UriKind.Relative))));
-                    elementsGroup.UIElements.Add(new PluginUIElement(createButtonPressAction(ActionEnum.LIGHT_CHANGE_COLOR, "0000FF"), UIElementType.Button, "Blue", "", ResourceToBytes(new Uri("/UniteHuePlugin;component/images/light-blue.png", System.UriKind.Relative))));
-                    elementsGroup.UIElements.Add(new PluginUIElement(createButtonPressAction(ActionEnum.LIGHT_CHANGE_COLOR, "FFFFFF"), UIElementType.Button, "White", "", ResourceToBytes(new Uri("/UniteHuePlugin;component/images/light-white.png", System.UriKind.Relative))));
+                    elementsGroup.UIElements.Add(new PluginUIElement(CreateButtonPressAction(ActionEnum.LIGHT_CHANGE_COLOR, "FF0000"), UIElementType.Button, "Red", "", ResourceToBytes(new Uri("/UniteHuePlugin;component/images/red.png", System.UriKind.Relative))));
+                    elementsGroup.UIElements.Add(new PluginUIElement(CreateButtonPressAction(ActionEnum.LIGHT_CHANGE_COLOR, "00FF00"), UIElementType.Button, "Green", "", ResourceToBytes(new Uri("/UniteHuePlugin;component/images/green.png", System.UriKind.Relative))));
+                    elementsGroup.UIElements.Add(new PluginUIElement(CreateButtonPressAction(ActionEnum.LIGHT_CHANGE_COLOR, "0000FF"), UIElementType.Button, "Blue", "", ResourceToBytes(new Uri("/UniteHuePlugin;component/images/blue.png", System.UriKind.Relative))));
+                    elementsGroup.UIElements.Add(new PluginUIElement(CreateButtonPressAction(ActionEnum.LIGHT_CHANGE_COLOR, "FFFF00"), UIElementType.Button, "Yellow", "", ResourceToBytes(new Uri("/UniteHuePlugin;component/images/Yellow.png", System.UriKind.Relative))));
+                    elementsGroup.UIElements.Add(new PluginUIElement(CreateButtonPressAction(ActionEnum.LIGHT_CHANGE_COLOR, "FFFFFF"), UIElementType.Button, "White", "", ResourceToBytes(new Uri("/UniteHuePlugin;component/images/white.png", System.UriKind.Relative))));
                 }
             }
             UI.Groups.Add(elementsGroup);
         }
 
+        async void SearchBridges()
+        {
+            foundHueBridges.Clear();
+            foundHueLights.Clear();
+            connectedBridge = null;
+            selectedLight = null;
 
+            UpdateUIGroups();
+            FireUIUpdated();
+
+            //search bridges at https://www.meethue.com/api/nupnp
+            //IBridgeLocator locator = new HttpBridgeLocator();
+            //scans network using multicast SSDP packets
+            IBridgeLocator locator = new SSDPBridgeLocator();
+
+            IEnumerable<Q42.HueApi.Models.Bridge.LocatedBridge> locatedBridges = await locator.LocateBridgesAsync(TimeSpan.FromSeconds(5));
+
+            foreach (var locatedBridge in locatedBridges)
+            {
+                foundHueBridges.Add(new HueBridge(locatedBridge.BridgeId, locatedBridge.BridgeId, locatedBridge.IpAddress));
+            }
+
+            string message = "Found Hue bridges count: " + locatedBridges.Count();
+            LogMessage(message, null);
+            ShowHubToast(message, hueLogoImage, 2);
+
+            UpdateUIGroups();
+            FireUIUpdated();
+        }
 
         async void ConnectToBridge(HueBridge bridge)
         {
@@ -394,6 +422,15 @@ namespace UniteHuePlugin
 
                 GetLights();
             }
+            else
+            {
+                connectedBridge = null;
+                selectedLight = null;
+                foundHueLights.Clear();
+            }
+
+            UpdateUIGroups();
+            FireUIUpdated();
         }
 
         async void GetLights()
@@ -419,8 +456,12 @@ namespace UniteHuePlugin
         }
         
 
-        void StartLightEffect()
+        void StartColorLoop(HueLight light)
         {
+            var command = new LightCommand();
+            command.Effect = Effect.ColorLoop;
+
+            SendCommandToClient(command, light.getLightId());
         }
 
         void SendCommandToClient(LightCommand command, string lightId)

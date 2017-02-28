@@ -89,6 +89,20 @@
     <Resource Include="images\turnoff.png" />
     <Resource Include="images\turnon.png" />
   </ItemGroup>
+  <ItemGroup>
+    <Resource Include="images\brighter.png" />
+    <Resource Include="images\darker.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="images\blue.png" />
+    <Resource Include="images\green.png" />
+    <Resource Include="images\red.png" />
+    <Resource Include="images\white.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="images\light-selected.png" />
+    <Resource Include="images\yellow.png" />
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Import Project="..\packages\Microsoft.Bcl.Build.1.0.21\build\Microsoft.Bcl.Build.targets" Condition="Exists('..\packages\Microsoft.Bcl.Build.1.0.21\build\Microsoft.Bcl.Build.targets')" />
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
